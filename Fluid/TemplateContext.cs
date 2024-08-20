@@ -24,20 +24,7 @@ namespace Fluid
         /// <param name="allowModelMembers">Whether the members of the model can be accessed by default.</param>
         public TemplateContext(object model, TemplateOptions options, bool allowModelMembers = true) : this(options)
         {
-            if (model == null)
-            {
-                ExceptionHelper.ThrowArgumentNullException(nameof(model));
-            }
-
-            if (model is FluidValue fluidValue)
-            {
-                Model = fluidValue;
-            }
-            else
-            {
-                Model = FluidValue.Create(model, options);
-                AllowModelMembers = allowModelMembers;
-            }
+            SetModel(model);
         }
 
         /// <summary>
@@ -63,6 +50,11 @@ namespace Fluid
         /// <param name="allowModelMembers">Whether the members of the model can be accessed by default.</param>
         public TemplateContext(object model, bool allowModelMembers = true) : this()
         {
+            SetModel(model);
+        }
+
+        public void SetModel(object model)
+        {
             if (model == null)
             {
                 ExceptionHelper.ThrowArgumentNullException(nameof(model));
@@ -75,7 +67,6 @@ namespace Fluid
             else
             {
                 Model = FluidValue.Create(model, TemplateOptions.Default);
-                AllowModelMembers = allowModelMembers;
             }
         }
 
@@ -138,7 +129,7 @@ namespace Fluid
         /// Gets or sets a model object that is used to resolve properties in a template. This object is used if local and
         /// global scopes are unsuccessfull.
         /// </summary>
-        public FluidValue Model { get; }
+        public FluidValue Model { get; set; }
 
         /// <summary>
         /// Whether the direct properties of the Model can be accessed without being registered. Default is <code>true</code>.
