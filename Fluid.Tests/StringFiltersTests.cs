@@ -1,4 +1,5 @@
-﻿using System.Linq;
+using System.Linq;
+using System.Threading.Tasks;
 using Fluid.Values;
 using Fluid.Filters;
 using Xunit;
@@ -31,7 +32,7 @@ namespace Fluid.Tests
 
             var result = StringFilters.Capitalize(input, arguments, context);
 
-            Assert.Equal("Hello World", result.Result.ToStringValue());
+            Assert.Equal("Hello world", result.Result.ToStringValue());
         }
 
         [Fact]
@@ -111,7 +112,7 @@ world
 
             var result = StringFilters.NewLineToBr(input, arguments, context);
 
-            Assert.Equal("Hello<br />World", result.Result.ToStringValue());
+            Assert.Equal("Hello<br />\nWorld", result.Result.ToStringValue());
         }
 
         [Fact]
@@ -153,19 +154,6 @@ world
             var result = StringFilters.Remove(filterInput, filterArguments, context);
 
             Assert.Equal(expected, result.Result.ToStringValue());
-        }
-
-        [Fact]
-        public void RemovesReturnsInputWhenArgumentIsEmpty()
-        {
-            var input = new StringValue("abcabc");
-
-            var arguments = FilterArguments.Empty;
-            var context = new TemplateContext();
-
-            var result = StringFilters.Remove(input, arguments, context);
-
-            Assert.Equal("abcabc", result.Result.ToStringValue());
         }
 
         [Theory]
@@ -276,35 +264,37 @@ world
         }
 
         [Fact]
-        public void Split()
+        public async Task Split()
         {
             var input = new StringValue("a.b.c");
 
             var arguments = new FilterArguments().Add(new StringValue("."));
             var context = new TemplateContext();
 
-            var result = StringFilters.Split(input, arguments, context);
+            var result = await StringFilters.Split(input, arguments, context);
 
-            Assert.Equal(3, result.Result.Enumerate(context).Count());
-            Assert.Equal(new StringValue("a"), result.Result.Enumerate(context).ElementAt(0));
-            Assert.Equal(new StringValue("b"), result.Result.Enumerate(context).ElementAt(1));
-            Assert.Equal(new StringValue("c"), result.Result.Enumerate(context).ElementAt(2));
+            var enumerated = await result.EnumerateAsync(context).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal(3, enumerated.Count());
+            Assert.Equal(new StringValue("a"), enumerated.ElementAt(0));
+            Assert.Equal(new StringValue("b"), enumerated.ElementAt(1));
+            Assert.Equal(new StringValue("c"), enumerated.ElementAt(2));
         }
 
         [Fact]
-        public void SplitWithEmptyString()
+        public async Task SplitWithEmptyString()
         {
             var input = new StringValue("abc");
 
             var arguments = new FilterArguments().Add(StringValue.Empty);
             var context = new TemplateContext();
 
-            var result = StringFilters.Split(input, arguments, context);
+            var result = await StringFilters.Split(input, arguments, context);
 
-            Assert.Equal(3, result.Result.Enumerate(context).Count());
-            Assert.Equal(new StringValue("a"), result.Result.Enumerate(context).ElementAt(0));
-            Assert.Equal(new StringValue("b"), result.Result.Enumerate(context).ElementAt(1));
-            Assert.Equal(new StringValue("c"), result.Result.Enumerate(context).ElementAt(2));
+            var enumerated = await result.EnumerateAsync(context).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal(3, enumerated.Count());
+            Assert.Equal(new StringValue("a"), enumerated.ElementAt(0));
+            Assert.Equal(new StringValue("b"), enumerated.ElementAt(1));
+            Assert.Equal(new StringValue("c"), enumerated.ElementAt(2));
         }
 
         [Theory]
@@ -344,7 +334,7 @@ world
         [Theory]
         [InlineData("one two three", 4, "one two three")]
         [InlineData("one two three", 2, "one two...")]
-        [InlineData("one two three", null, "one two three")]
+        [InlineData("one two three", 15, "one two three")]
         [InlineData("Two small (13&#8221; x 5.5&#8221; x 10&#8221; high) baskets fit inside one large basket (13&#8221; x 16&#8221; x 10.5&#8221; high) with cover.", 15, "Two small (13&#8221; x 5.5&#8221; x 10&#8221; high) baskets fit inside one large basket (13&#8221;...")]
         [InlineData("测试测试测试测试", 5, "测试测试测试测试")]
         [InlineData("one  two\tthree\nfour", 3, "one two three...")]

@@ -1,105 +1,94 @@
-﻿using System.Reflection;
-#if !NET6_0_OR_GREATER
-using System.Text;
-#endif
+using System.Text.Json;
+
 namespace Fluid
 {
-    public sealed class MemberNameStrategies
+    public sealed class StringComparers
     {
-        public static readonly MemberNameStrategy Default = RenameDefault;
-        public static readonly MemberNameStrategy CamelCase = RenameCamelCase;
-        public static readonly MemberNameStrategy SnakeCase = RenameSnakeCase;
+        public static StringComparer CamelCase { get; } = new CamelCaseStringComparer();
+        public static StringComparer SnakeCase { get; } = new SnakeCaseStringComparer();
+    }
 
-        private static string RenameDefault(MemberInfo member) => member.Name;
-
-#if NET6_0_OR_GREATER
-        public static string RenameCamelCase(MemberInfo member)
+    public sealed class CamelCaseStringComparer : StringComparer
+    {
+        public override int Compare(string x, string y)
         {
-            return String.Create(member.Name.Length, member.Name, (data, name) =>
-            {
-                data[0] = char.ToLowerInvariant(name[0]);
-                name.AsSpan().Slice(1).CopyTo(data.Slice(1));
-            });
+            var cx = JsonNamingPolicy.CamelCase.ConvertName(x);
+            var cy = JsonNamingPolicy.CamelCase.ConvertName(y);
+            return string.Compare(cx, cy, StringComparison.Ordinal);
         }
 
-        public static string RenameSnakeCase(MemberInfo member)
+        public override bool Equals(string x, string y)
         {
-            var upper = 0;
-            for (var i = 1; i < member.Name.Length; i++)
+            // Converting a name allocates whenever it isn't already camel-cased, and two names that are
+            // ordinally equal always convert to the same result, so settle those without converting.
+            if (ReferenceEquals(x, y))
             {
-                if (char.IsUpper(member.Name[i]))
-                {
-                    upper++;
-                }
+                return true;
             }
 
-            return String.Create(member.Name.Length + upper, member.Name, (data, name) =>
+            if (x is null || y is null)
             {
-                var previousUpper = false;
-                var k = 0;
-
-                for (var i = 0; i < name.Length; i++)
-                {
-                    var c = name[i];
-                    if (char.IsUpper(c))
-                    {
-                        if (i > 0 && !previousUpper)
-                        {
-                            data[k++] = '_';
-                        }
-                        data[k++] = char.ToLowerInvariant(c);
-                        previousUpper = true;
-                    }
-                    else
-                    {
-                        data[k++] = c;
-                        previousUpper = false;
-                    }
-                }
-            });
-        }
-#else
-        public static string RenameCamelCase(MemberInfo member)
-        {
-            var firstChar = member.Name[0];
-
-            if (firstChar == char.ToLowerInvariant(firstChar))
-            {
-                return member.Name;
+                return false;
             }
 
-            var name = member.Name.ToCharArray();
-            name[0] = char.ToLowerInvariant(firstChar);
-
-            return new String(name);
-        }
-
-        public static string RenameSnakeCase(MemberInfo member)
-        {
-            var builder = new StringBuilder();
-            var name = member.Name;
-            var previousUpper = false;
-
-            for (var i = 0; i < name.Length; i++)
+            if (string.Equals(x, y, StringComparison.Ordinal))
             {
-                var c = name[i];
-                if (char.IsUpper(c))
-                {
-                    if (i > 0 && !previousUpper)
-                    {
-                        builder.Append('_');
-                    }
-                    builder.Append(char.ToLowerInvariant(c));
-                    previousUpper = true;
-                }
-                else
-                {
-                    builder.Append(c);
-                    previousUpper = false;
-                }
+                return true;
             }
-            return builder.ToString();
+
+            // Camel-casing never changes the length of a name.
+            if (x.Length != y.Length)
+            {
+                return false;
+            }
+
+            var cx = JsonNamingPolicy.CamelCase.ConvertName(x);
+            var cy = JsonNamingPolicy.CamelCase.ConvertName(y);
+            return string.Equals(cx, cy, StringComparison.Ordinal);
         }
-#endif
+    
+        public override int GetHashCode(string obj)
+        {
+            return JsonNamingPolicy.CamelCase.ConvertName(obj).GetHashCode();
+        }
+    }
+
+    public sealed class SnakeCaseStringComparer : StringComparer
+    {
+        public override int Compare(string x, string y)
+        {
+            var cx = JsonNamingPolicy.SnakeCaseLower.ConvertName(x);
+            var cy = JsonNamingPolicy.SnakeCaseLower.ConvertName(y);
+            return string.Compare(cx, cy, StringComparison.Ordinal);
+        }
+
+        public override bool Equals(string x, string y)
+        {
+            // Two ordinally equal names always convert to the same result, so skip the conversion,
+            // which allocates.
+            if (ReferenceEquals(x, y))
+            {
+                return true;
+            }
+
+            if (x is null || y is null)
+            {
+                return false;
+            }
+
+            if (string.Equals(x, y, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            var cx = JsonNamingPolicy.SnakeCaseLower.ConvertName(x);
+            var cy = JsonNamingPolicy.SnakeCaseLower.ConvertName(y);
+            return string.Equals(cx, cy, StringComparison.Ordinal);
+        }
+
+        public override int GetHashCode(string obj)
+        {
+            return JsonNamingPolicy.SnakeCaseLower.ConvertName(obj).GetHashCode();
+        }
     }
 }

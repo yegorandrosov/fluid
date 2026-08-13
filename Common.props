@@ -16,7 +16,7 @@
     <IsPackable>true</IsPackable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <LangVersion>latest</LangVersion>
-    <NoWarn>$(NoWarn);1591</NoWarn>
+    <NoWarn>$(NoWarn);1591;CS0618;CS0672</NoWarn>
     
     <!-- Sourcelink -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -24,9 +24,8 @@
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
 
     <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
-    <VersionPrefix>2.5.1</VersionPrefix>
+    <VersionPrefix>2.0.0</VersionPrefix>
     <VersionSuffix>beta-$(BuildNumber)</VersionSuffix>
-    <FileVersion>$(VersionPrefix).$(BuildNumber)</FileVersion>
 
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <SignAssembly>true</SignAssembly>

@@ -1,4 +1,5 @@
-﻿using Fluid.Ast.BinaryExpressions;
+using Fluid.Ast.BinaryExpressions;
+using Fluid.Parser;
 
 namespace Fluid.Ast
 {
@@ -203,12 +204,27 @@ namespace Fluid.Ast
 
             Visit(caseStatement.Expression);
 
-            foreach (var statement in caseStatement.Whens)
+            foreach (var block in caseStatement.Blocks)
             {
-                Visit(statement);
+                if (block is WhenBlock whenBlock)
+                {
+                    foreach (var option in whenBlock.Options)
+                    {
+                        Visit(option);
+                    }
+                    foreach (var statement in whenBlock.Statements)
+                    {
+                        Visit(statement);
+                    }
+                }
+                else if (block is ElseBlock elseBlock)
+                {
+                    foreach (var statement in elseBlock.Statements)
+                    {
+                        Visit(statement);
+                    }
+                }
             }
-
-            Visit(caseStatement.Else);
 
             return caseStatement;
         }
@@ -262,6 +278,21 @@ namespace Fluid.Ast
             return elseStatement;
         }
 
+        protected internal virtual Statement VisitEmptyBlockStatement(EmptyBlockStatement emptyBlockStatement)
+        {
+            foreach (var statement in emptyBlockStatement.Statements)
+            {
+                Visit(statement);
+            }
+
+            return emptyBlockStatement;
+        }
+
+        protected internal virtual Statement VisitEmptyTagStatement(EmptyTagStatement emptyTagStatement)
+        {
+            return emptyTagStatement;
+        }
+
         protected internal virtual Expression VisitFilterExpression(FilterExpression filterExpression)
         {
             Visit(filterExpression.Input);
@@ -290,6 +321,21 @@ namespace Fluid.Ast
             return forStatement;
         }
 
+        protected internal virtual Statement VisitTableRowStatement(TableRowStatement tableRowStatement)
+        {
+            Visit(tableRowStatement.Source);
+            Visit(tableRowStatement.Limit);
+            Visit(tableRowStatement.Offset);
+            Visit(tableRowStatement.Cols);
+
+            foreach (var statement in tableRowStatement.Statements)
+            {
+                Visit(statement);
+            }
+
+            return tableRowStatement;
+        }
+
         protected internal virtual Statement VisitFromStatement(FromStatement fromStatement)
         {
             Visit(fromStatement.Path);
@@ -313,6 +359,16 @@ namespace Fluid.Ast
             }
 
             return ifStatement;
+        }
+
+        protected internal virtual Statement VisitIfChangedStatement(IfChangedStatement ifChangedStatement)
+        {
+            foreach (var statement in ifChangedStatement.Statements)
+            {
+                Visit(statement);
+            }
+
+            return ifChangedStatement;
         }
 
         protected internal virtual Statement VisitIncludeStatement(IncludeStatement includeStatement)
@@ -376,6 +432,21 @@ namespace Fluid.Ast
             return noOpStatement;
         }
 
+        protected internal virtual Statement VisitParserBlockStatement<T>(ParserBlockStatement<T> parserBlockStatement)
+        {
+            foreach (var statement in parserBlockStatement.Statements)
+            {
+                Visit(statement);
+            }
+
+            return parserBlockStatement;
+        }
+
+        protected internal virtual Statement VisitParserTagStatement<T>(ParserTagStatement<T> parserTagStatement)
+        {
+            return parserTagStatement;
+        }
+
         protected internal virtual Statement VisitOutputStatement(OutputStatement outputStatement)
         {
             Visit(outputStatement.Expression);
@@ -417,6 +488,12 @@ namespace Fluid.Ast
         protected internal virtual Statement VisitUnlessStatement(UnlessStatement unlessStatement)
         {
             Visit(unlessStatement.Condition);
+
+            foreach (var elseIf in unlessStatement.ElseIfs)
+            {
+                Visit(elseIf);
+            }
+
             Visit(unlessStatement.Else);
 
             foreach (var statement in unlessStatement.Statements)

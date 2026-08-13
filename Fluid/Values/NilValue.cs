@@ -3,16 +3,19 @@ using System.Text.Encodings.Web;
 
 namespace Fluid.Values
 {
-    public sealed class NilValue : FluidValue
+    public abstract class BaseNilValue : FluidValue
     {
-        public static readonly NilValue Instance = new NilValue(); // a variable that is not defined, or the nil keyword
-        public static readonly NilValue Empty = new NilValue(); // the empty keyword
-
-        private NilValue()
-        {
-        }
-
         public override FluidValues Type => FluidValues.Nil;
+
+        public override ValueTask<FluidValue> GetValueAsync(string name, TemplateContext context)
+        {
+            // Nil values have a size of 0
+            if (name == "size")
+            {
+                return NumberValue.Zero;
+            }
+            return NilValue.Instance;
+        }
 
         public override bool Equals(FluidValue other)
         {
@@ -52,12 +55,7 @@ namespace Fluid.Values
             return true;
         }
 
-        [Obsolete("WriteTo is obsolete, prefer the WriteToAsync method.")]
-        public override void WriteTo(TextWriter writer, TextEncoder encoder, CultureInfo cultureInfo)
-        {
-        }
-
-        public override ValueTask WriteToAsync(TextWriter writer, TextEncoder encoder, CultureInfo cultureInfo)
+        public override ValueTask WriteToAsync(IFluidOutput output, TextEncoder encoder, CultureInfo cultureInfo)
         {
             return default;
         }
@@ -71,6 +69,15 @@ namespace Fluid.Values
         public override int GetHashCode()
         {
             return GetType().GetHashCode();
+        }
+    }
+
+    public sealed class NilValue : BaseNilValue
+    {
+        public static readonly NilValue Instance = new NilValue(); // a variable that is not defined, or the nil keyword
+
+        private NilValue()
+        {
         }
     }
 }

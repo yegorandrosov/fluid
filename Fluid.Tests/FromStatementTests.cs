@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
@@ -11,10 +11,12 @@ namespace Fluid.Tests;
 
 public class FromStatementTests
 {
+    // Enable all parsing options to ensure these custom features don't interfere with standard templates.
+
 #if COMPILED
-        private static FluidParser _parser = new FluidParser(new FluidParserOptions { AllowFunctions = true }).Compile();
+        private static FluidParser _parser = new FluidParser(new FluidParserOptions { AllowFunctions = true, AllowParentheses = true }).Compile();
 #else
-    private static FluidParser _parser = new FluidParser(new FluidParserOptions { AllowFunctions = true });
+    private static FluidParser _parser = new FluidParser(new FluidParserOptions { AllowFunctions = true, AllowParentheses = true });
 #endif
 
     [Fact]
@@ -60,7 +62,7 @@ public class FromStatementTests
         await fromStatement.WriteToAsync(sw, HtmlEncoder.Default, context);
 
         Assert.IsType<FunctionValue>(context.GetValue("hello_world"));
-        Assert.IsType<NilValue>(context.GetValue("hello"));
+        Assert.IsType<UndefinedValue>(context.GetValue("hello"));
     }
 
     [Fact]
@@ -121,5 +123,37 @@ public class FromStatementTests
 
         var result = await template.RenderAsync(context);
         Assert.Equal("Hello world! Hello John Doe!", result);
+    }
+
+    [Fact]
+    public async Task FromStatement_ShouldLoadMacrosAsynchronously()
+    {
+        var sourceLoader = new AsyncTemplateFileProvider()
+            .Add("_Macros.liquid", "{% macro hello() %}Hello{% endmacro %}");
+        var options = new TemplateOptions { FileProvider = sourceLoader };
+        var source = "{% from '_Macros' import hello %}{{ hello() }}";
+
+        _parser.TryParse(source, out var template, out var error);
+
+        var renderTask = template.RenderAsync(new TemplateContext(options));
+        Assert.False(renderTask.IsCompletedSuccessfully);
+        Assert.Equal("Hello", await renderTask);
+        Assert.Equal(1, sourceLoader.GetReadCount("_Macros.liquid"));
+    }
+
+    [Fact]
+    public async Task FromStatement_ShouldReloadMacrosWhenSourceVersionChanges()
+    {
+        var sourceLoader = new AsyncTemplateFileProvider()
+            .Add("_Macros.liquid", "{% macro hello() %}First{% endmacro %}");
+        var options = new TemplateOptions { FileProvider = sourceLoader };
+        _parser.TryParse("{% from '_Macros' import hello %}{{ hello() }}", out var template);
+
+        Assert.Equal("First", await template.RenderAsync(new TemplateContext(options)));
+
+        sourceLoader.Add("_Macros.liquid", "{% macro hello() %}Second{% endmacro %}");
+
+        Assert.Equal("Second", await template.RenderAsync(new TemplateContext(options)));
+        Assert.Equal(2, sourceLoader.GetReadCount("_Macros.liquid"));
     }
 }

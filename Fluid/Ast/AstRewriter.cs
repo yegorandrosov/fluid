@@ -1,4 +1,4 @@
-﻿using Fluid.Ast.BinaryExpressions;
+using Fluid.Ast.BinaryExpressions;
 using Fluid.Parser;
 
 namespace Fluid.Ast
@@ -276,11 +276,52 @@ namespace Fluid.Ast
 
         protected internal override Statement VisitCaseStatement(CaseStatement caseStatement)
         {
-            if (TryRewriteExpression(caseStatement.Expression, out var newExpression)
-                | TryRewriteStatement(caseStatement.Else, out var newElseStatement)
-                | TryRewriteStatements(caseStatement.Whens, out var newWhenStatements))
+            var hasChanges = false;
+            var newBlocks = new List<CaseBlock>();
+            
+            if (TryRewriteExpression(caseStatement.Expression, out var newExpression))
             {
-                return new CaseStatement(newExpression, newElseStatement, newWhenStatements.ToArray());
+                hasChanges = true;
+            }
+            else
+            {
+                newExpression = caseStatement.Expression;
+            }
+
+            foreach (var block in caseStatement.Blocks)
+            {
+                if (block is WhenBlock whenBlock)
+                {
+                    var optionsChanged = TryRewriteExpressions(whenBlock.Options, out var newOptions);
+                    var statementsChanged = TryRewriteStatements(whenBlock.Statements, out var newStatements);
+                    
+                    if (optionsChanged || statementsChanged)
+                    {
+                        hasChanges = true;
+                        newBlocks.Add(new WhenBlock(newOptions.ToArray(), newStatements.ToArray()));
+                    }
+                    else
+                    {
+                        newBlocks.Add(block);
+                    }
+                }
+                else if (block is ElseBlock elseBlock)
+                {
+                    if (TryRewriteStatements(elseBlock.Statements, out var newStatements))
+                    {
+                        hasChanges = true;
+                        newBlocks.Add(new ElseBlock(newStatements.ToArray()));
+                    }
+                    else
+                    {
+                        newBlocks.Add(block);
+                    }
+                }
+            }
+
+            if (hasChanges)
+            {
+                return new CaseStatement(newExpression, newBlocks.ToArray());
             }
 
             return caseStatement;
@@ -331,6 +372,21 @@ namespace Fluid.Ast
             return elseStatement;
         }
 
+        protected internal override Statement VisitEmptyBlockStatement(EmptyBlockStatement emptyBlockStatement)
+        {
+            if (TryRewriteStatements(emptyBlockStatement.Statements, out var newStatements))
+            {
+                return new EmptyBlockStatement(emptyBlockStatement.TagName, newStatements.ToList(), emptyBlockStatement.Render);
+            }
+
+            return emptyBlockStatement;
+        }
+
+        protected internal override Statement VisitEmptyTagStatement(EmptyTagStatement emptyTagStatement)
+        {
+            return emptyTagStatement;
+        }
+
         protected internal override Expression VisitFilterExpression(FilterExpression filterExpression)
         {
             var updated = false;
@@ -368,6 +424,20 @@ namespace Fluid.Ast
             return forStatement;
         }
 
+        protected internal override Statement VisitTableRowStatement(TableRowStatement tableRowStatement)
+        {
+            if (TryRewriteExpression(tableRowStatement.Source, out var newSource) |
+                TryRewriteExpression(tableRowStatement.Limit, out var newLimit) |
+                TryRewriteExpression(tableRowStatement.Offset, out var newOffset) |
+                TryRewriteExpression(tableRowStatement.Cols, out var newCols) |
+                TryRewriteStatements(tableRowStatement.Statements, out var newStatements))
+            {
+                return new TableRowStatement(newStatements.ToList(), tableRowStatement.Identifier, newSource, newLimit, newOffset, newCols);
+            }
+
+            return tableRowStatement;
+        }
+
         protected internal override Statement VisitFromStatement(FromStatement fromStatement)
         {
             if (TryRewriteExpression(fromStatement.Path, out var newPath))
@@ -389,6 +459,16 @@ namespace Fluid.Ast
             }
 
             return ifStatement;
+        }
+
+        protected internal override Statement VisitIfChangedStatement(IfChangedStatement ifChangedStatement)
+        {
+            if (TryRewriteStatements(ifChangedStatement.Statements, out var newStatements))
+            {
+                return new IfChangedStatement(newStatements.ToList());
+            }
+
+            return ifChangedStatement;
         }
 
         protected internal override Statement VisitIncludeStatement(IncludeStatement includeStatement)
@@ -467,6 +547,21 @@ namespace Fluid.Ast
             return outputStatement;
         }
 
+        protected internal override Statement VisitParserBlockStatement<T>(ParserBlockStatement<T> parserBlockStatement)
+        {
+            if (TryRewriteStatements(parserBlockStatement.Statements, out var newStatements))
+            {
+                return new ParserBlockStatement<T>(parserBlockStatement.TagName, parserBlockStatement.Value, newStatements.ToList(), parserBlockStatement.Render);
+            }
+
+            return parserBlockStatement;
+        }
+
+        protected internal override Statement VisitParserTagStatement<T>(ParserTagStatement<T> parserTagStatement)
+        {
+            return parserTagStatement;
+        }
+
         protected internal override Expression VisitRangeExpression(RangeExpression rangeExpression)
         {
             if (TryRewriteExpression(rangeExpression.From, out var newFrom) |
@@ -502,11 +597,14 @@ namespace Fluid.Ast
 
         protected internal override Statement VisitUnlessStatement(UnlessStatement unlessStatement)
         {
+            var rewriteElseIfs = TryRewriteStatements<ElseIfStatement>(unlessStatement.ElseIfs, out var newElseIfs);
+
             if (TryRewriteExpression(unlessStatement.Condition, out var newCondition) |
                 TryRewriteStatement(unlessStatement.Else, out var newElse) |
-                TryRewriteStatements(unlessStatement.Statements, out var newStatements))
+                TryRewriteStatements(unlessStatement.Statements, out var newStatements) |
+                rewriteElseIfs)
             {
-                return new UnlessStatement(newCondition, newStatements.ToList(), newElse);
+                return new UnlessStatement(newCondition, newStatements.ToList(), newElse, newElseIfs?.ToList());
             }
             return unlessStatement;
         }

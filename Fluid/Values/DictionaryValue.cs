@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Linq;
 using System.Text.Encodings.Web;
 
 namespace Fluid.Values
@@ -55,20 +56,29 @@ namespace Fluid.Values
 
         public override ValueTask<FluidValue> GetValueAsync(string name, TemplateContext context)
         {
+            // Check if the actual property exists first before using synthetic properties
+            if (_value.TryGetValue(name, out var fluidValue))
+            {
+                return fluidValue;
+            }
+
             if (name == "size")
             {
-                return new ValueTask<FluidValue>(NumberValue.Create(_value.Count));
+                return NumberValue.Create(_value.Count);
             }
 
-            if (!_value.TryGetValue(name, out var fluidValue))
+            // Only .first is a synthetic property for dictionaries (not .last)
+            if (name == "first" && _value.Count > 0)
             {
-                return new ValueTask<FluidValue>(NilValue.Instance);
+                var firstKey = _value.Keys.First();
+                _value.TryGetValue(firstKey, out var firstValue);
+                return new ArrayValue(new[] { new StringValue(firstKey), firstValue });
             }
 
-            return new ValueTask<FluidValue>(fluidValue);
+            return NilValue.Instance;
         }
 
-        protected override FluidValue GetIndex(FluidValue index, TemplateContext context)
+        public override ValueTask<FluidValue> GetIndexAsync(FluidValue index, TemplateContext context)
         {
             var name = index.ToStringValue();
 
@@ -87,22 +97,39 @@ namespace Fluid.Values
 
         public override decimal ToNumberValue()
         {
-            return 0;
+            return _value.Count;
         }
 
-        [Obsolete("WriteTo is obsolete, prefer the WriteToAsync method.")]
-        public override void WriteTo(TextWriter writer, TextEncoder encoder, CultureInfo cultureInfo)
+        public override ValueTask WriteToAsync(IFluidOutput output, TextEncoder encoder, CultureInfo cultureInfo)
         {
-        }
+            AssertWriteToParameters(output, encoder, cultureInfo);
 
-        public override ValueTask WriteToAsync(TextWriter writer, TextEncoder encoder, CultureInfo cultureInfo)
-        {
+            var value = ToStringValue();
+            if (string.IsNullOrEmpty(value))
+            {
+                return default;
+            }
+
+            output.Write(encoder, value);
             return default;
         }
 
         public override string ToStringValue()
         {
-            return "";
+            if (_value.Count == 0)
+            {
+                return "{}";
+            }
+            
+            var items = new List<string>();
+            foreach (var key in _value.Keys)
+            {
+                if (_value.TryGetValue(key, out var value))
+                {
+                    items.Add($"\"{key}\":{value.ToStringValue()}");
+                }
+            }
+            return "{" + string.Join(",", items) + "}";
         }
 
         public override object ToObjectValue()
@@ -110,26 +137,28 @@ namespace Fluid.Values
             return _value;
         }
 
-        public override bool Contains(FluidValue value)
+        public override ValueTask<bool> ContainsAsync(FluidValue value, TemplateContext context)
         {
             foreach (var key in _value.Keys)
             {
-                if (_value.TryGetValue(key, out var item) && item.Equals(value.ToObjectValue()))
+                if (_value.TryGetValue(key, out var item) && item.Equals(value.ToObjectValue(context)))
                 {
-                    return true;
+                    return new ValueTask<bool>(true);
                 }
             }
 
-            return false;
+            return new ValueTask<bool>(false);
         }
 
-        public override IEnumerable<FluidValue> Enumerate(TemplateContext context)
+        public override async IAsyncEnumerable<FluidValue> EnumerateAsync(TemplateContext context)
         {
             foreach (var key in _value.Keys)
             {
                 _value.TryGetValue(key, out var value);
                 yield return new ArrayValue([new StringValue(key), value]);
             }
+
+            await Task.CompletedTask;
         }
 
         public override bool Equals(object obj)
@@ -137,7 +166,7 @@ namespace Fluid.Values
             // The is operator will return false if null
             if (obj is DictionaryValue otherValue)
             {
-                return _value.Equals(otherValue._value);
+                return Equals(otherValue);
             }
 
             return false;
@@ -145,7 +174,15 @@ namespace Fluid.Values
 
         public override int GetHashCode()
         {
-            return _value.GetHashCode();
+            var hc = new HashCode();
+            foreach (var key in _value.Keys.OrderBy(k => k))
+            {
+                hc.Add(key);
+                if (_value.TryGetValue(key, out var v))
+                    hc.Add(v);
+            }
+
+            return hc.ToHashCode();
         }
     }
 }

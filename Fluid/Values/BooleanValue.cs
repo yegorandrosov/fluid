@@ -1,4 +1,4 @@
-﻿using Fluid.Utils;
+using Fluid.Utils;
 using System.Globalization;
 using System.Text.Encodings.Web;
 
@@ -31,6 +31,11 @@ namespace Fluid.Values
             // blank == false -> true
             if (other.Type == FluidValues.Blank) return !_value;
 
+            if (other.Type != FluidValues.Boolean)
+            {
+                return false;
+            }
+
             return _value == other.ToBooleanValue();
         }
 
@@ -49,30 +54,16 @@ namespace Fluid.Values
             return _value ? "true" : "false";
         }
 
-        [Obsolete("WriteTo is obsolete, prefer the WriteToAsync method.")]
-        public override void WriteTo(TextWriter writer, TextEncoder encoder, CultureInfo cultureInfo)
+        public override ValueTask WriteToAsync(IFluidOutput output, TextEncoder encoder, CultureInfo cultureInfo)
         {
-            AssertWriteToParameters(writer, encoder, cultureInfo);
-            writer.Write(encoder.Encode(ToStringValue()));
+            AssertWriteToParameters(output, encoder, cultureInfo);
+            output.Write(encoder, ToStringValue());
+            return default;
         }
 
-        public override ValueTask WriteToAsync(TextWriter writer, TextEncoder encoder, CultureInfo cultureInfo)
+        public override IEnumerable<FluidValue> Enumerate(TemplateContext context)
         {
-            AssertWriteToParameters(writer, encoder, cultureInfo);
-            var task = writer.WriteAsync(encoder.Encode(ToStringValue()));
-
-            if (task.IsCompletedSuccessfully())
-            {
-                return default;
-            }
-
-            return Awaited(task);
-
-            static async ValueTask Awaited(Task t)
-            {
-                await t;
-                return;
-            }
+            return [this];
         }
 
         public override object ToObjectValue()

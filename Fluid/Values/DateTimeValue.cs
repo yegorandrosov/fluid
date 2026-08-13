@@ -1,4 +1,4 @@
-﻿using Fluid.Utils;
+using Fluid.Utils;
 using System.Globalization;
 using System.Text.Encodings.Web;
 
@@ -11,6 +11,45 @@ namespace Fluid.Values
         public DateTimeValue(DateTimeOffset value)
         {
             _value = value;
+        }
+
+        public DateTimeValue(DateTime value)
+        {
+            // Handle edge cases where DateTime cannot be safely converted to DateTimeOffset
+            // with local timezone offset due to overflow (e.g., DateTime.MinValue with positive offset)
+            
+            // Check if the value is within one day of the boundaries where overflow might occur
+            if (value <= DateTime.MinValue.AddDays(1))
+            {
+                // Value is close to MinValue - attempt conversion with try-catch
+                try
+                {
+                    _value = value;
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    // Offset caused underflow - use minimum boundary
+                    _value = DateTimeOffset.MinValue;
+                }
+            }
+            else if (value >= DateTime.MaxValue.AddDays(-1))
+            {
+                // Value is close to MaxValue - attempt conversion with try-catch
+                try
+                {
+                    _value = value;
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    // Offset caused overflow - use maximum boundary
+                    _value = DateTimeOffset.MaxValue;
+                }
+            }
+            else
+            {
+                // Normal case - direct conversion without try-catch overhead
+                _value = value;
+            }
         }
 
         public override FluidValues Type => FluidValues.DateTime;
@@ -45,30 +84,16 @@ namespace Fluid.Values
             return _value.ToString("u", CultureInfo.InvariantCulture);
         }
 
-        [Obsolete("WriteTo is obsolete, prefer the WriteToAsync method.")]
-        public override void WriteTo(TextWriter writer, TextEncoder encoder, CultureInfo cultureInfo)
+        public override ValueTask WriteToAsync(IFluidOutput output, TextEncoder encoder, CultureInfo cultureInfo)
         {
-            AssertWriteToParameters(writer, encoder, cultureInfo);
-            writer.Write(_value.ToString("u", cultureInfo));
+            AssertWriteToParameters(output, encoder, cultureInfo);
+            output.Write(_value.ToString("u", cultureInfo));
+            return default;
         }
 
-        public override ValueTask WriteToAsync(TextWriter writer, TextEncoder encoder, CultureInfo cultureInfo)
+        public override IEnumerable<FluidValue> Enumerate(TemplateContext context)
         {
-            AssertWriteToParameters(writer, encoder, cultureInfo);
-            var task = writer.WriteAsync(_value.ToString("u", cultureInfo));
-
-            if (task.IsCompletedSuccessfully())
-            {
-                return default;
-            }
-
-            return Awaited(task);
-
-            static async ValueTask Awaited(Task t)
-            {
-                await t;
-                return;
-            }
+            return [this];
         }
 
         public override object ToObjectValue()
