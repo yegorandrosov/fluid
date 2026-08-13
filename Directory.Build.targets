@@ -1,0 +1,24 @@
+<Project>
+
+  <!--
+    Fork-specific packaging overrides for the SparkDynamic build of Fluid.
+
+    This file intentionally lives outside Common.props / the .csproj files: upstream
+    (sebastienros/fluid) does not have a Directory.Build.targets, so merging upstream
+    never conflicts here.
+
+    The '$(PackageId)' != '' guard is required. Projects such as Fluid.SourceGenerator
+    do not set a PackageId, and NuGet's "default PackageId to AssemblyName" fallback runs
+    after this file is imported - without the guard those projects would be renamed to
+    the bare prefix.
+  -->
+  <PropertyGroup Condition="'$(PackageId)' != ''">
+    <PackageId>SparkDynamic.$(PackageId)</PackageId>
+    <Authors>Spark Dynamic</Authors>
+    <Copyright>Spark Dynamic</Copyright>
+    <PackageProjectUrl>https://github.com/yegorandrosov/fluid</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yegorandrosov/fluid</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+</Project>
