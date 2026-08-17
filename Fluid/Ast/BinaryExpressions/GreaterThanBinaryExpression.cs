@@ -12,7 +12,7 @@ namespace Fluid.Ast.BinaryExpressions
 
         public bool Strict { get; }
 
-        internal override FluidValue Evaluate(FluidValue leftValue, FluidValue rightValue)
+        internal override FluidValue Evaluate(FluidValue leftValue, FluidValue rightValue, TemplateContext context)
         {
             bool comparisonResult;
 
@@ -31,6 +31,11 @@ namespace Fluid.Ast.BinaryExpressions
             {
                 if (rightValue is not NumberValue)
                 {
+                    if (context.Options.LenientComparisons)
+                    {
+                        return new BinaryExpressionFluidValue(NilValue.Instance, false);
+                    }
+
                     throw new LiquidException("comparison of Integer with other type failed");
                 }
 
@@ -47,6 +52,11 @@ namespace Fluid.Ast.BinaryExpressions
             {
                 if (rightValue is not StringValue)
                 {
+                    if (context.Options.LenientComparisons)
+                    {
+                        return new BinaryExpressionFluidValue(NilValue.Instance, false);
+                    }
+
                     throw new LiquidException("comparison of String with other type failed");
                 }
 
@@ -97,7 +107,7 @@ namespace Fluid.Ast.BinaryExpressions
                 context.WriteLine("{");
                 using (context.Indent())
                 {
-                    context.WriteLine("throw new LiquidException(\"comparison of Integer with other type failed\");");
+                    RelationalComparison.WriteMismatch(context, "comparison of Integer with other type failed");
                 }
                 context.WriteLine("}");
                 context.WriteLine($"comparisonResult = {strict} ? leftValue.ToNumberValue({context.ContextName}) > rightValue.ToNumberValue({context.ContextName}) : leftValue.ToNumberValue({context.ContextName}) >= rightValue.ToNumberValue({context.ContextName});");
@@ -111,7 +121,7 @@ namespace Fluid.Ast.BinaryExpressions
                 context.WriteLine("{");
                 using (context.Indent())
                 {
-                    context.WriteLine("throw new LiquidException(\"comparison of String with other type failed\");");
+                    RelationalComparison.WriteMismatch(context, "comparison of String with other type failed");
                 }
                 context.WriteLine("}");
                 context.WriteLine("var comparison = string.Compare(leftValue.ToStringValue(), rightValue.ToStringValue(), StringComparison.Ordinal);");

@@ -36,6 +36,21 @@ namespace Fluid
         /// </summary>
         public bool StrictFilters { get; set; }
 
+        /// <summary>
+        /// When set to <c>true</c>, a relational comparison (<c>&gt;</c>, <c>&gt;=</c>, <c>&lt;</c>, <c>&lt;=</c>) between
+        /// operands of different types evaluates to <c>false</c> instead of throwing a <see cref="LiquidException"/>.
+        /// The default is <c>false</c>, which follows the reference implementation and reports
+        /// <c>comparison of String with Integer failed</c>.
+        /// </summary>
+        /// <remarks>
+        /// Ruby Liquid raises a <c>Liquid::ArgumentError</c> for these comparisons, but its default error mode
+        /// renders the message inline and carries on with the rest of the template. Fluid has no equivalent
+        /// recovery, so in a host that renders templates it does not author — a themable storefront, a CMS —
+        /// a single <c>{% if price &gt; 0 %}</c> over a preformatted string takes the whole page down. This option
+        /// trades the diagnostic for that resilience; it does not affect <c>==</c> or <c>!=</c>, which never throw.
+        /// </remarks>
+        public bool LenientComparisons { get; set; }
+
         /// <param name="identifier">The name of the property that is assigned.</param>
         /// <param name="value">The value that is assigned.</param>
         /// <param name="context">The <see cref="TemplateContext" /> instance used for rendering the template.</param>

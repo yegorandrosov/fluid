@@ -109,6 +109,60 @@ namespace Fluid.Tests
         }
 
         [Theory]
+        [InlineData("v > 0")]
+        [InlineData("v >= 0")]
+        [InlineData("v < 0")]
+        [InlineData("v <= 0")]
+        [InlineData("0 > v")]
+        [InlineData("0 >= v")]
+        [InlineData("0 < v")]
+        [InlineData("0 <= v")]
+        public async Task MixedTypeRelationalComparisonThrowsByDefault(string source)
+        {
+            _parser.TryParse("{% if " + source + " %}true{% else %}false{% endif %}", out var template, out _);
+
+            var context = new TemplateContext();
+            context.SetValue("v", "22.00 CHF");
+
+            await Assert.ThrowsAsync<LiquidException>(async () => await template.RenderAsync(context));
+        }
+
+        [Theory]
+        [InlineData("v > 0")]
+        [InlineData("v >= 0")]
+        [InlineData("v < 0")]
+        [InlineData("v <= 0")]
+        [InlineData("0 > v")]
+        [InlineData("0 >= v")]
+        [InlineData("0 < v")]
+        [InlineData("0 <= v")]
+        public async Task MixedTypeRelationalComparisonIsFalseWhenLenient(string source)
+        {
+            _parser.TryParse("{% if " + source + " %}true{% else %}false{% endif %}", out var template, out _);
+
+            var context = new TemplateContext(new TemplateOptions { LenientComparisons = true });
+            context.SetValue("v", "22.00 CHF");
+
+            Assert.Equal("false", await template.RenderAsync(context));
+        }
+
+        [Theory]
+        [InlineData("2 > 1", "true")]
+        [InlineData("2 < 1", "false")]
+        [InlineData("'b' > 'a'", "true")]
+        [InlineData("'b' < 'a'", "false")]
+        [InlineData("v > 0", "false")]
+        public async Task LenientComparisonsLeavesMatchingTypesAlone(string source, string expected)
+        {
+            _parser.TryParse("{% if " + source + " %}true{% else %}false{% endif %}", out var template, out _);
+
+            // v is undefined: nil operands are handled before the type check and were never affected.
+            var context = new TemplateContext(new TemplateOptions { LenientComparisons = true });
+
+            Assert.Equal(expected, await template.RenderAsync(context));
+        }
+
+        [Theory]
         [InlineData("'abc' startswith 'bc'", "false")]
         [InlineData("'abc' startswith 'ab'", "true")]
         [InlineData("x startswith 'b'", "false")]
