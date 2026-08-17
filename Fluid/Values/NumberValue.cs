@@ -17,6 +17,24 @@ namespace Fluid.Values
         /// </summary>
         private const int InternedLimit = 1024;
 
+        /// <summary>
+        /// The most fraction digits a decimal can carry, and so the largest
+        /// <see cref="TemplateOptions.MinimumFractionDigits"/> that means anything.
+        /// </summary>
+        public const int MaximumFractionDigits = 28;
+
+        /// <summary>
+        /// The fraction digits rendered for a number whose fractional part is all zeros: <c>20.00</c> writes
+        /// as <c>20.0</c>. Raise it through <see cref="TemplateOptions.MinimumFractionDigits"/>.
+        /// </summary>
+        public const int DefaultMinimumFractionDigits = 1;
+
+        /// <summary>
+        /// "F2" … "F28", indexed by digit count, so the opt-in path formats without composing a string per
+        /// value. Index 0 and 1 are never read: they are the default rendering above.
+        /// </summary>
+        private static readonly string[] FixedFormats = BuildFixedFormats();
+
         public static readonly NumberValue Zero;
 
         private static readonly NumberValue[] IntToString = new NumberValue[InternedLimit];
@@ -127,6 +145,16 @@ namespace Fluid.Values
 
         public override ValueTask WriteToAsync(IFluidOutput output, TextEncoder encoder, CultureInfo cultureInfo)
         {
+            return WriteToAsync(output, encoder, cultureInfo, DefaultMinimumFractionDigits);
+        }
+
+        /// <summary>
+        /// Writes the number, rendering at least <paramref name="minimumFractionDigits"/> fraction digits when it
+        /// has a fractional part. See <see cref="TemplateOptions.MinimumFractionDigits"/>; pass
+        /// <see cref="DefaultMinimumFractionDigits"/> for the default rendering.
+        /// </summary>
+        public ValueTask WriteToAsync(IFluidOutput output, TextEncoder encoder, CultureInfo cultureInfo, int minimumFractionDigits)
+        {
             AssertWriteToParameters(output, encoder, cultureInfo);
 
             if (_text is not null)
@@ -142,7 +170,12 @@ namespace Fluid.Values
 
             if (scale == 0)
             {
-                // Default format.
+                // Default format. A number with no fractional part is a count, not an amount: padding it
+                // with zeros would be wrong whatever minimumFractionDigits asks for.
+            }
+            else if (WantsFixedDigits(minimumFractionDigits, _value))
+            {
+                format = FixedFormats[minimumFractionDigits];
             }
             else if (_value * (10 * scale) % (10 * scale) == 0)
             {
@@ -194,6 +227,10 @@ namespace Fluid.Values
             {
                 // If the scale is zero, we can write the value directly without formatting
                 output.Write(encoder, _value.ToString(cultureInfo));
+            }
+            else if (WantsFixedDigits(minimumFractionDigits, _value))
+            {
+                output.Write(encoder, _value.ToString(FixedFormats[minimumFractionDigits], cultureInfo));
             }
             else if (_value * (10 * scale) % (10 * scale) == 0)
             {
@@ -292,6 +329,29 @@ namespace Fluid.Values
                 return temp[value];
             }
             return new NumberValue(value);
+        }
+
+        private static string[] BuildFixedFormats()
+        {
+            var formats = new string[MaximumFractionDigits + 1];
+            for (var i = 0; i < formats.Length; ++i)
+            {
+                formats[i] = "F" + i.ToString(CultureInfo.InvariantCulture);
+            }
+
+            return formats;
+        }
+
+        /// <summary>
+        /// Whether a value with a fractional part should be padded to <paramref name="minimumFractionDigits"/>.
+        /// Only if that many digits still describe it exactly: a price of <c>20.5</c> becomes <c>20.50</c>, but
+        /// <c>0.125</c> keeps its third digit rather than being rounded away to satisfy the minimum.
+        /// </summary>
+        private static bool WantsFixedDigits(int minimumFractionDigits, decimal value)
+        {
+            return minimumFractionDigits > DefaultMinimumFractionDigits
+                && minimumFractionDigits <= MaximumFractionDigits
+                && decimal.Round(value, minimumFractionDigits) == value;
         }
 
         /// <summary>

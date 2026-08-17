@@ -24,7 +24,7 @@ namespace Fluid.Ast
                 TemplateContext ctx)
             {
                 var value = await t;
-                await value.WriteToAsync(o, enc, ctx.CultureInfo);
+                await Write(value, o, enc, ctx);
                 return Completion.Normal;
             }
 
@@ -33,7 +33,7 @@ namespace Fluid.Ast
             var task = Expression.EvaluateAsync(context);
             if (task.IsCompletedSuccessfully)
             {
-                var valueTask = task.Result.WriteToAsync(output, encoder, context.CultureInfo);
+                var valueTask = Write(task.Result, output, encoder, context);
 
                 if (valueTask.IsCompletedSuccessfully)
                 {
@@ -52,6 +52,18 @@ namespace Fluid.Ast
             return Awaited(task, output, encoder, context);
         }
 
+        /// <summary>
+        /// Writes a value the way <c>{{ }}</c> renders it. Only the output statement consults
+        /// <see cref="TemplateOptions.MinimumFractionDigits"/>: it is about how a template prints an amount,
+        /// not about the counters <c>increment</c> and <c>cycle</c> emit.
+        /// </summary>
+        public static ValueTask Write(FluidValue value, IFluidOutput output, TextEncoder encoder, TemplateContext context)
+        {
+            return value is NumberValue number
+                ? number.WriteToAsync(output, encoder, context.CultureInfo, context.Options.MinimumFractionDigits)
+                : value.WriteToAsync(output, encoder, context.CultureInfo);
+        }
+
         protected internal override Statement Accept(AstVisitor visitor) => visitor.VisitOutputStatement(this);
 
         public void WriteTo(SourceGenerationContext context)
@@ -65,7 +77,7 @@ namespace Fluid.Ast
             context.WriteLine("{");
             using (context.Indent())
             {
-                context.WriteLine($"var valueTask = task.Result.WriteToAsync({context.WriterName}, {context.EncoderName}, {context.ContextName}.CultureInfo);");
+                context.WriteLine($"var valueTask = OutputStatement.Write(task.Result, {context.WriterName}, {context.EncoderName}, {context.ContextName});");
                 context.WriteLine("if (valueTask.IsCompletedSuccessfully)");
                 context.WriteLine("{");
                 using (context.Indent())
@@ -94,7 +106,7 @@ namespace Fluid.Ast
             using (context.Indent())
             {
                 context.WriteLine("var value = await t;");
-                context.WriteLine("await value.WriteToAsync(w, enc, ctx.CultureInfo);");
+                context.WriteLine("await OutputStatement.Write(value, w, enc, ctx);");
                 context.WriteLine("return Completion.Normal;");
             }
             context.WriteLine("}");

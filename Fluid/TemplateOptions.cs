@@ -9,6 +9,7 @@ namespace Fluid
     public class TemplateOptions
     {
         private MemberAccessStrategy _memberAccessStrategy = new DefaultMemberAccessStrategy();
+        private int _minimumFractionDigits = NumberValue.DefaultMinimumFractionDigits;
 
         /// <summary>
         /// Gets or sets the size (in chars) of the internal output buffer used when rendering to a <see cref="TextWriter"/>.
@@ -140,6 +141,27 @@ namespace Fluid
         /// use <see cref="MoneyFilters.WithMoneyFilters(FilterCollection)"/> to add them to <see cref="Filters"/>.
         /// </summary>
         public MoneyOptions MoneyOptions { get; set; } = new MoneyOptions();
+
+        /// <summary>
+        /// Gets or sets the smallest number of fraction digits an output statement renders for a number that
+        /// has a fractional part. The default is <c>1</c>, which renders <c>20.00</c> as <c>20.0</c>.
+        /// </summary>
+        /// <remarks>
+        /// A number with no fractional part is never affected: a count renders as <c>18</c> whatever this is
+        /// set to. Digits are only ever added, never removed, so a value that needs more of them keeps them:
+        /// with <c>2</c>, <c>20.00</c> renders as <c>20.00</c>, <c>20.5</c> as <c>20.50</c> and <c>0.125</c>
+        /// still as <c>0.125</c>. Set this where the numbers a template prints are amounts — a storefront
+        /// printing <c>CHF 20.0</c> for a price is the case this exists for — rather than asking every
+        /// template to remember a <c>format_number</c> call.
+        /// </remarks>
+        public int MinimumFractionDigits
+        {
+            get => _minimumFractionDigits;
+            set => _minimumFractionDigits = value is < 0 or > NumberValue.MaximumFractionDigits
+                ? throw new ArgumentOutOfRangeException(nameof(MinimumFractionDigits),
+                    $"The value must be between 0 and {NumberValue.MaximumFractionDigits}.")
+                : value;
+        }
 
         /// <summary>
         /// Gets or sets the value returned by the "now" keyword.
